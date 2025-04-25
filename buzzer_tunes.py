@@ -1,55 +1,79 @@
 import RPi.GPIO as GPIO
 import time
 
-# the pin connected to the buzzer
-BUZZER_PIN = 18
+BUZZER_PIN = 4
 
-# GPIO Congiguration
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
-# Setting up PWM on the buzzer pin at 1kHz
-pwm = GPIO.PWM(BUZZER_PIN, 1000)  # Start frequency = 1000 Hz
+pwm = GPIO.PWM(BUZZER_PIN, 1000)
 
-def play_tone(frequency, duration):
-    pwm.ChangeFrequency(frequency)
-    pwm.start(50)  # 50% duty cycle
+def play_tone(freq, duration):
+    pwm.ChangeFrequency(freq)
+    pwm.start(50)
     time.sleep(duration)
     pwm.stop()
-    time.sleep(0.05)  # Small pause  
+    time.sleep(0.05)
+    
+    
+def system_end():
+    #otes = [343, 299, 200]
+    #notes = [783, 659, 523]
+    #notes = [783, 659, 523, 392, 349, 293, 261]
+    notes = [783.99, 659.25, 587.33, 523.25, 493.88, 392.00]
+    duration = [0.15, 0.15, 0.15, 0.2, 0.3]
+    for notes, duration in zip(notes, duration):
+        play_tone(notes, duration)
+    
+    
+def system_start():
+    notes = [392, 523.25, 587.33, 659.25, 523.25]
+    duration = [0.15, 0.15, 0.15, 0.2, 0.3]
+    for notes, duration in zip(notes, duration):
+        play_tone(notes, duration)
+        
+def pomodaro_start():
+    notes = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00]
+    duration = [0.1, 0.1, 0.1, 0.1, 0.15, 0.2]
+    for notes, duration in zip(notes, duration):
+        play_tone(notes, duration)
+        
+        
+def pomodaro_end():
+    notes = [ 880.00, 783.99, 659.25, 587.33, 659.25, 523.25]
+    duration = [0.1, 0.1, 0.1, 0.1, 0.15, 0.2]
+    for notes, duration in zip(notes, duration):
+        play_tone(notes, duration)
+        
+def pomodaro_ambient():
+    notes = [98.00, 123.47, 146.83, 130.81]
+    duration = [0.7, 0.7, 0.8, 1.0]
+    for notes, duration in zip(notes, duration):
+        play_tone(notes, duration)
+        time.sleep(0.3)
+    
+        
 
-def play_tune_1():
-    # Simplple low to high tune
-    notes = [262, 294, 330, 349, 392, 440, 494, 523]  # C4 to C5
-    for note in notes:
-        play_tone(note, 0.2)
-
-def play_tune_2():
-    # Twinkle Twinkle (first part)
-    melody = [(262, 0.4), (262, 0.4), (392, 0.4), (392, 0.4),
-              (440, 0.4), (440, 0.4), (392, 0.8)]
-    for note, duration in melody:
-        play_tone(note, duration)
-
-def play_tune_3():
-    # random pattern
-    melody = [(392, 0.2), (349, 0.2), (330, 0.3), (294, 0.3), (262, 0.5)]
-    for note, duration in melody:
-        play_tone(note, duration)
-
+        
 try:
-    print("Playing Tune 1")
-    play_tune_1()
-    time.sleep(1)
+    for i in range(2):
+        print("start of the system playing")
+        system_start()
+        time.sleep(2)
+        print("Pomodaro start playing")
+        pomodaro_start()
+        time.sleep(2)
+        print("Pomodaro ambient playing")
+        pomodaro_ambient()
+        time.sleep(2)
+        print("Pomodaro end playing")
+        pomodaro_end()
+        time.sleep(2)
+        print("end of the playing")
+        system_end()
+        time.sleep(1)
 
-    print("Playing Tune 2")
-    play_tune_2()
-    time.sleep(1)
-
-    print("Playing Tune 3")
-    play_tune_3()
-
+    
 finally:
     pwm.stop()
     GPIO.cleanup()
-
