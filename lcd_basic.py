@@ -1,52 +1,97 @@
-#!/usr/bin/python3
-
-from signal import signal, SIGTERM, SIGHUP, pause
-from rpi_lcd import LCD
+import os
+import fcntl
 import time
-import datetime
-import RPi.GPIO as GPIO
 
-lcd = LCD()
+I2C_SLAVE = 0x0703
+LCD_I2C_ADDR = 0x27  
 
-BUTTON_PIN = 23  # Connect the push button here
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+# Commands
+LCD_CLEARDISPLAY = 0x01
+LCD_RETURNHOME = 0x02
+LCD_ENTRYMODESET = 0x04
+LCD_DISPLAYCONTROL = 0x08
+LCD_FUNCTIONSET = 0x20
+LCD_SETDDRAMADDR = 0x80
 
-def safe_exit(signum, frame):
-    lcd.clear()
-    exit(1)
+# Flags
+LCD_ENTRYLEFT = 0x02
+LCD_DISPLAYON = 0x04
+LCD_2LINE = 0x08
+LCD_5x8DOTS = 0x00
+LCD_4BITMODE = 0x00
 
-signal(SIGTERM, safe_exit)
-signal(SIGHUP, safe_exit)
+class Display:
+    def __init__(self):
+        self.file = os.open("/dev/i2c-1", os.O_RDWR)
+        fcntl.ioctl(self.file, I2C_SLAVE, LCD_I2C_ADDR)
+        self.backlight = 0x08  # backlight ON
+        self._init_lcd()
 
-def scroll_text(text, line, delay=0.3, width=16):
-    for i in range(len(text) - width + 1):
-        lcd.text(text[i:i+width], line)
-        time.sleep(delay)
+    def _write_byte(self, data):
+        os.write(self.file, bytes([data | self.backlight]))
 
-try:
-    lcd.text("Hello", 1)
-    lcd.text("Bhakti Ramani", 2)
-    time.sleep(2)
+    def _pulse_enable(self, data):
+        self._write_byte(data | 0x04)  # Enable high
+        time.sleep(0.0005)
+        self._write_byte(data & ~0x04)  # Enable low
+        time.sleep(0.0001)
 
-    lcd.clear()
-    scroll_text("AESD", 1)
-    time.sleep(1)
+    def _write4bits(self, data):
+        self._write_byte(data)
+        self._pulse_enable(data)
 
-    while True:
-        # Print date
-        now = datetime.datetime.now().strftime("%H:%M:%S")
-        lcd.text("Time: " + now, 1)
-        lcd.text("Press the button...", 2)
+    def _send(self, data, mode=0):
+        high = data & 0xF0
+        low = (data << 4) & 0xF0
+        self._write4bits(high | mode)
+        self._write4bits(low | mode)
 
-        if GPIO.input(BUTTON_PIN) == GPIO.LOW:
-            lcd.text("Button Pressed!", 2)
-            time.sleep(1)
+    def _command(self, cmd):
+        self._send(cmd, mode=0x00)
 
-        time.sleep(0.5)
+    def _write_char(self, char):
+        self._send(ord(char), mode=0x01)
 
-except KeyboardInterrupt:
-    pass
-finally:
-    lcd.clear()
-    GPIO.cleanup()
+    def _init_lcd(self):
+        time.sleep(0.05)  # wait for LCD to power up
+        self._write4bits(0x30)
+        time.sleep(0.005)
+        self._write4bits(0x30)
+        time.sleep(0.005)
+        self._write4bits(0x30)
+        time.sleep(0.005)
+        self._write4bits(0x20)  # set to 4-bit mode
+        time.sleep(0.005)
+
+        self._command(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
+        self._command(LCD_DISPLAYCONTROL | LCD_DISPLAYON)
+        self._command(LCD_CLEARDISPLAY)
+        self._command(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
+        time.sleep(0.002)
+
+    def clear(self):
+        self._command(LCD_CLEARDISPLAY)
+        time.sleep(0.002)
+
+    def home(self):
+        self._command(LCD_RETURNHOME)
+        time.sleep(0.002)
+
+    def set_cursor(self, col, row):
+        row_offsets = [0x00, 0x40, 0x10, 0x50]  # Very important for 16x4!
+        if row > 3:
+            row = 3
+        addr = col + row_offsets[row]
+        self._command(LCD_SETDDRAMADDR | addr)
+
+    def write(self, text):
+        for char in text:
+            self._write_char(char)
+
+    def show_message(self, text, line=0):
+        self.set_cursor(0, line)
+        self.write(text.ljust(16))  # pad to clear line fully
+
+    def close(self):
+        os.close(self.file)
+

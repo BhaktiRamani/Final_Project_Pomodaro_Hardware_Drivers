@@ -1,79 +1,65 @@
 import RPi.GPIO as GPIO
 import time
 
-BUZZER_PIN = 4
+class Buzzer:
+    BUZZER_PIN = 4
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(BUZZER_PIN, GPIO.OUT)
+    def __init__(self):
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.BUZZER_PIN, GPIO.OUT)
+        self.pwm = None
+        
+    def _start_pwm(self, freq):
+        self.pwm = GPIO.PWM(self.BUZZER_PIN, freq)
+        self.pwm.start(50)
 
-pwm = GPIO.PWM(BUZZER_PIN, 1000)
+    def play_tone(self, freq, duration):
+        if self.pwm is None:  
+            self._start_pwm(freq)
+        self.pwm.ChangeFrequency(freq)
+        self.pwm.start(50)
+        time.sleep(duration)
+        self.pwm.stop()
+        time.sleep(0.05)
 
-def play_tone(freq, duration):
-    pwm.ChangeFrequency(freq)
-    pwm.start(50)
-    time.sleep(duration)
-    pwm.stop()
-    time.sleep(0.05)
-    
-    
-def system_end():
-    #otes = [343, 299, 200]
-    #notes = [783, 659, 523]
-    #notes = [783, 659, 523, 392, 349, 293, 261]
-    notes = [783.99, 659.25, 587.33, 523.25, 493.88, 392.00]
-    duration = [0.15, 0.15, 0.15, 0.2, 0.3]
-    for notes, duration in zip(notes, duration):
-        play_tone(notes, duration)
-    
-    
-def system_start():
-    notes = [392, 523.25, 587.33, 659.25, 523.25]
-    duration = [0.15, 0.15, 0.15, 0.2, 0.3]
-    for notes, duration in zip(notes, duration):
-        play_tone(notes, duration)
-        
-def pomodaro_start():
-    notes = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00]
-    duration = [0.1, 0.1, 0.1, 0.1, 0.15, 0.2]
-    for notes, duration in zip(notes, duration):
-        play_tone(notes, duration)
-        
-        
-def pomodaro_end():
-    notes = [ 880.00, 783.99, 659.25, 587.33, 659.25, 523.25]
-    duration = [0.1, 0.1, 0.1, 0.1, 0.15, 0.2]
-    for notes, duration in zip(notes, duration):
-        play_tone(notes, duration)
-        
-def pomodaro_ambient():
-    notes = [98.00, 123.47, 146.83, 130.81]
-    duration = [0.7, 0.7, 0.8, 1.0]
-    for notes, duration in zip(notes, duration):
-        play_tone(notes, duration)
-        time.sleep(0.3)
-    
-        
+    def system_start(self):
+        notes = [392, 523.25, 587.33, 659.25, 523.25]
+        duration = [0.15, 0.15, 0.15, 0.2, 0.3]
+        self._play_sequence(notes, duration)
 
-        
-try:
-    for i in range(2):
-        print("start of the system playing")
-        system_start()
-        time.sleep(2)
-        print("Pomodaro start playing")
-        pomodaro_start()
-        time.sleep(2)
-        print("Pomodaro ambient playing")
-        pomodaro_ambient()
-        time.sleep(2)
-        print("Pomodaro end playing")
-        pomodaro_end()
-        time.sleep(2)
-        print("end of the playing")
-        system_end()
-        time.sleep(1)
+    def system_end(self):
+        notes = [783.99, 659.25, 587.33, 523.25, 493.88, 392.00]
+        duration = [0.15, 0.15, 0.15, 0.2, 0.3, 0.3]
+        self._play_sequence(notes, duration)
 
+    def pomodaro_start(self):
+        notes = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00]
+        duration = [0.1, 0.1, 0.1, 0.1, 0.15, 0.2]
+        self._play_sequence(notes, duration)
+
+    def pomodaro_end(self):
+        notes = [880.00, 783.99, 659.25, 587.33, 659.25, 523.25]
+        duration = [0.1, 0.1, 0.1, 0.1, 0.15, 0.2]
+        self._play_sequence(notes, duration)
     
-finally:
-    pwm.stop()
-    GPIO.cleanup()
+
+    def play_reset(self):
+    # Reset tune - "Starting over" feeling (distinctive pattern)
+        notes = [392.00, 349.23, 329.63, 349.23, 392.00, 523.25]  # G4, F4, E4, F4, G4, C5
+        duration = [0.15, 0.15, 0.15, 0.15, 0.15, 0.3]
+        self._play_sequence(notes, duration)
+
+    def play_pause(self):
+        # Pause tune - "On hold" feeling (gentle alternating pattern)
+        notes = [329.63, 392.00, 329.63, 392.00, 349.23, 329.63]  # E4, G4, E4, G4, F4, E4
+        duration = [0.2, 0.2, 0.2, 0.2, 0.2, 0.3]
+        self._play_sequence(notes, duration)
+
+    def _play_sequence(self, notes, durations):
+        for note, dur in zip(notes, durations):
+            self.play_tone(note, dur)
+
+    def cleanup(self):
+        self.pwm.stop()
+        GPIO.cleanup()
